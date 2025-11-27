@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Correlation & Power Simulation</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+            color: #333;
+        }
+        h1 {
+            text-align: center;
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+        .intro {
+            background: white;
+            padding: 15px 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border-left: 4px solid #3498db;
+        }
+        .intro p {
+            margin: 0 0 10px 0;
+            line-height: 1.5;
+        }
+        .intro p:last-child {
+            margin-bottom: 0;
+        }
+        .controls {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        .control-group {
+            display: flex;
+            flex-direction: column;
+        }
+        .control-group label {
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #2c3e50;
+        }
+        .slider-container {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        input[type="range"] {
+            flex: 1;
+            height: 8px;
+            border-radius: 4px;
+            background: #ddd;
+            outline: none;
+            -webkit-appearance: none;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #3498db;
+            cursor: pointer;
+        }
+        .value-display {
+            min-width: 60px;
+            text-align: right;
+            font-weight: 600;
+            font-size: 1.1em;
+            color: #3498db;
+        }
+        button {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            font-size: 1em;
+            font-weight: 600;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        button:hover {
+            background: #2980b9;
+        }
+        .button-container {
+            grid-column: 1 / -1;
+            text-align: center;
+        }
+        .results {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .stat-box {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 6px;
+            text-align: center;
+        }
+        .stat-box .label {
+            font-size: 0.85em;
+            color: #666;
+            margin-bottom: 5px;
+        }
+        .stat-box .value {
+            font-size: 1.4em;
+            font-weight: 700;
+            color: #2c3e50;
+        }
+        .stat-box.highlight {
+            background: #e8f4f8;
+            border: 2px solid #3498db;
+        }
+        .stat-box.highlight .value {
+            color: #3498db;
+        }
+        .charts {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        .chart-container {
+            background: #f8f9fa;
+            border-radius: 6px;
+            padding: 15px;
+        }
+        .chart-container h3 {
+            margin: 0 0 10px 0;
+            text-align: center;
+            color: #2c3e50;
+            font-size: 1em;
+        }
+        canvas {
+            width: 100%;
+            height: 250px;
+        }
+        .explanation {
+            background: #fff9e6;
+            padding: 15px 20px;
+            border-radius: 8px;
+            border-left: 4px solid #f1c40f;
+            margin-top: 20px;
+        }
+        .explanation h3 {
+            margin: 0 0 10px 0;
+            color: #856404;
+        }
+        .explanation p {
+            margin: 0;
+            line-height: 1.5;
+            color: #856404;
+        }
+        @media (max-width: 600px) {
+            .controls {
+                grid-template-columns: 1fr;
+            }
+            .charts {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>Correlation & Statistical Power</h1>
+    
+    <div class="intro">
+        <p><strong>What does this show?</strong> This simulation draws 10,000 samples and computes the correlation coefficient (r) for each. We then test H₀: r = 0 and record the p-value.</p>
+        <p>When the true correlation is zero, p-values are uniformly distributed (each value equally likely). When the true correlation is non-zero, p-values cluster near zero—and the proportion below 0.05 is your <strong>statistical power</strong>.</p>
+    </div>
+
+    <div class="controls">
+        <div class="control-group">
+            <label>True Population Correlation (ρ)</label>
+            <div class="slider-container">
+                <input type="range" id="trueR" min="0" max="0.5" step="0.05" value="0.2">
+                <span class="value-display" id="trueRValue">0.20</span>
+            </div>
+        </div>
+        <div class="control-group">
+            <label>Sample Size (N)</label>
+            <div class="slider-container">
+                <input type="range" id="sampleSize" min="20" max="300" step="10" value="100">
+                <span class="value-display" id="sampleSizeValue">100</span>
+            </div>
+        </div>
+        <div class="button-container">
+            <button onclick="runSimulation()">Run Simulation (10,000 samples)</button>
+        </div>
+    </div>
+
+    <div class="results">
+        <div class="stats">
+            <div class="stat-box">
+                <div class="label">Mean Sample r</div>
+                <div class="value" id="meanR">—</div>
+            </div>
+            <div class="stat-box">
+                <div class="label">SD of Sample r</div>
+                <div class="value" id="sdR">—</div>
+            </div>
+            <div class="stat-box highlight">
+                <div class="label">Power (p &lt; 0.05)</div>
+                <div class="value" id="power">—</div>
+            </div>
+            <div class="stat-box">
+                <div class="label">p &lt; 0.01</div>
+                <div class="value" id="power01">—</div>
+            </div>
+        </div>
+        
+        <div class="charts">
+            <div class="chart-container">
+                <h3>(a) Sample Correlations (r)</h3>
+                <canvas id="corrChart"></canvas>
+            </div>
+            <div class="chart-container">
+                <h3>(b) P-values for H₀: r = 0</h3>
+                <canvas id="pvalChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <div class="explanation" id="explanation">
+        <h3>What to notice</h3>
+        <p>Adjust the sliders and run the simulation to explore how true effect size (ρ) and sample size (N) affect your ability to detect a real correlation.</p>
+    </div>
+
+    <script>
+        // Update slider displays
+        document.getElementById('trueR').addEventListener('input', function() {
+            document.getElementById('trueRValue').textContent = parseFloat(this.value).toFixed(2);
+        });
+        document.getElementById('sampleSize').addEventListener('input', function() {
+            document.getElementById('sampleSizeValue').textContent = this.value;
+        });
+
+        // Box-Muller transform for normal random numbers
+        function randn() {
+            let u = 0, v = 0;
+            while (u === 0) u = Math.random();
+            while (v === 0) v = Math.random();
+            return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+        }
+
+        // Generate correlated sample
+        function generateCorrelatedSample(n, r) {
+            const x = [], y = [];
+            for (let i = 0; i < n; i++) {
+                const x1 = randn();
+                const x2 = randn();
+                x.push(x1);
+                y.push(r * x1 + Math.sqrt(1 - r * r) * x2);
+            }
+            return { x, y };
+        }
+
+        // Compute Pearson correlation
+        function pearsonCorrelation(x, y) {
+            const n = x.length;
+            let sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0, sumY2 = 0;
+            for (let i = 0; i < n; i++) {
+                sumX += x[i];
+                sumY += y[i];
+                sumXY += x[i] * y[i];
+                sumX2 += x[i] * x[i];
+                sumY2 += y[i] * y[i];
+            }
+            const num = n * sumXY - sumX * sumY;
+            const den = Math.sqrt((n * sumX2 - sumX * sumX) * (n * sumY2 - sumY * sumY));
+            return num / den;
+        }
+
+        // Compute p-value for correlation using t-distribution approximation
+        function correlationPValue(r, n) {
+            if (Math.abs(r) >= 1) return 0;
+            const t = r * Math.sqrt((n - 2) / (1 - r * r));
+            const df = n - 2;
+            // Two-tailed p-value using approximation
+            const x = df / (df + t * t);
+            const p = incompleteBeta(x, df / 2, 0.5);
+            return p;
+        }
+
+        // Incomplete beta function approximation (for t-distribution CDF)
+        function incompleteBeta(x, a, b) {
+            // Using continued fraction approximation
+            if (x === 0) return 0;
+            if (x === 1) return 1;
+            
+            const bt = Math.exp(
+                lgamma(a + b) - lgamma(a) - lgamma(b) +
+                a * Math.log(x) + b * Math.log(1 - x)
+            );
+            
+            if (x < (a + 1) / (a + b + 2)) {
+                return bt * betaCF(x, a, b) / a;
+            } else {
+                return 1 - bt * betaCF(1 - x, b, a) / b;
+            }
+        }
+
+        // Log gamma function
+        function lgamma(x) {
+            const cof = [
+                76.18009172947146, -86.50532032941677,
+                24.01409824083091, -1.231739572450155,
+                0.1208650973866179e-2, -0.5395239384953e-5
+            ];
+            let y = x;
+            let tmp = x + 5.5;
+            tmp -= (x + 0.5) * Math.log(tmp);
+            let ser = 1.000000000190015;
+            for (let j = 0; j < 6; j++) {
+                ser += cof[j] / ++y;
+            }
+            return -tmp + Math.log(2.5066282746310005 * ser / x);
+        }
+
+        // Continued fraction for incomplete beta
+        function betaCF(x, a, b) {
+            const maxIter = 100;
+            const eps = 3e-7;
+            const fpmin = 1e-30;
+            
+            const qab = a + b;
+            const qap = a + 1;
+            const qam = a - 1;
+            let c = 1;
+            let d = 1 - qab * x / qap;
+            if (Math.abs(d) < fpmin) d = fpmin;
+            d = 1 / d;
+            let h = d;
+            
+            for (let m = 1; m <= maxIter; m++) {
+                const m2 = 2 * m;
+                let aa = m * (b - m) * x / ((qam + m2) * (a + m2));
+                d = 1 + aa * d;
+                if (Math.abs(d) < fpmin) d = fpmin;
+                c = 1 + aa / c;
+                if (Math.abs(c) < fpmin) c = fpmin;
+                d = 1 / d;
+                h *= d * c;
+                aa = -(a + m) * (qab + m) * x / ((a + m2) * (qap + m2));
+                d = 1 + aa * d;
+                if (Math.abs(d) < fpmin) d = fpmin;
+                c = 1 + aa / c;
+                if (Math.abs(c) < fpmin) c = fpmin;
+                d = 1 / d;
+                const del = d * c;
+                h *= del;
+                if (Math.abs(del - 1) < eps) break;
+            }
+            return h;
+        }
+
+        // Create histogram data
+        function createHistogram(data, min, max, bins) {
+            const binWidth = (max - min) / bins;
+            const counts = new Array(bins).fill(0);
+            const binEdges = [];
+            
+            for (let i = 0; i <= bins; i++) {
+                binEdges.push(min + i * binWidth);
+            }
+            
+            for (const val of data) {
+                const binIndex = Math.min(Math.floor((val - min) / binWidth), bins - 1);
+                if (binIndex >= 0 && binIndex < bins) {
+                    counts[binIndex]++;
+                }
+            }
+            
+            return { counts, binEdges, binWidth };
+        }
+
+        // Draw histogram on canvas
+        function drawHistogram(canvasId, data, min, max, bins, color, verticalLine = null, verticalLineLabel = null) {
+            const canvas = document.getElementById(canvasId);
+            const ctx = canvas.getContext('2d');
+            
+            // Set actual canvas size for crisp rendering
+            const rect = canvas.getBoundingClientRect();
+            canvas.width = rect.width * 2;
+            canvas.height = rect.height * 2;
+            ctx.scale(2, 2);
+            
+            const width = rect.width;
+            const height = rect.height;
+            const padding = { top: 20, right: 20, bottom: 40, left: 50 };
+            const plotWidth = width - padding.left - padding.right;
+            const plotHeight = height - padding.top - padding.bottom;
+            
+            // Clear canvas
+            ctx.fillStyle = '#f8f9fa';
+            ctx.fillRect(0, 0, width, height);
+            
+            // Create histogram
+            const hist = createHistogram(data, min, max, bins);
+            const maxCount = Math.max(...hist.counts);
+            
+            // Draw bars
+            ctx.fillStyle = color;
+            for (let i = 0; i < hist.counts.length; i++) {
+                const x = padding.left + (i / bins) * plotWidth;
+                const barWidth = plotWidth / bins - 1;
+                const barHeight = (hist.counts[i] / maxCount) * plotHeight;
+                const y = padding.top + plotHeight - barHeight;
+                ctx.fillRect(x, y, barWidth, barHeight);
+            }
+            
+            // Draw axes
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(padding.left, padding.top);
+            ctx.lineTo(padding.left, padding.top + plotHeight);
+            ctx.lineTo(padding.left + plotWidth, padding.top + plotHeight);
+            ctx.stroke();
+            
+            // X-axis labels
+            ctx.fillStyle = '#333';
+            ctx.font = '11px sans-serif';
+            ctx.textAlign = 'center';
+            for (let i = 0; i <= 4; i++) {
+                const val = min + (max - min) * (i / 4);
+                const x = padding.left + (i / 4) * plotWidth;
+                ctx.fillText(val.toFixed(1), x, padding.top + plotHeight + 20);
+            }
+            
+            // Y-axis labels
+            ctx.textAlign = 'right';
+            for (let i = 0; i <= 4; i++) {
+                const val = Math.round(maxCount * (i / 4));
+                const y = padding.top + plotHeight - (i / 4) * plotHeight;
+                ctx.fillText(val.toString(), padding.left - 8, y + 4);
+            }
+            
+            // Axis titles
+            ctx.font = '12px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(canvasId === 'corrChart' ? 'r' : 'p', padding.left + plotWidth / 2, height - 5);
+            
+            ctx.save();
+            ctx.translate(12, padding.top + plotHeight / 2);
+            ctx.rotate(-Math.PI / 2);
+            ctx.fillText('count', 0, 0);
+            ctx.restore();
+            
+            // Draw vertical line if specified
+            if (verticalLine !== null) {
+                const lineX = padding.left + ((verticalLine - min) / (max - min)) * plotWidth;
+                ctx.strokeStyle = '#e74c3c';
+                ctx.lineWidth = 2;
+                ctx.setLineDash([6, 4]);
+                ctx.beginPath();
+                ctx.moveTo(lineX, padding.top);
+                ctx.lineTo(lineX, padding.top + plotHeight);
+                ctx.stroke();
+                ctx.setLineDash([]);
+                
+                // Label
+                if (verticalLineLabel) {
+                    ctx.fillStyle = '#e74c3c';
+                    ctx.font = 'bold 11px sans-serif';
+                    ctx.textAlign = 'left';
+                    ctx.fillText(verticalLineLabel, lineX + 5, padding.top + 15);
+                }
+            }
+        }
+
+        // Main simulation function
+        function runSimulation() {
+            const trueR = parseFloat(document.getElementById('trueR').value);
+            const n = parseInt(document.getElementById('sampleSize').value);
+            const nSim = 10000;
+            
+            const correlations = [];
+            const pValues = [];
+            
+            // Run simulations
+            for (let i = 0; i < nSim; i++) {
+                const sample = generateCorrelatedSample(n, trueR);
+                const r = pearsonCorrelation(sample.x, sample.y);
+                const p = correlationPValue(r, n);
+                correlations.push(r);
+                pValues.push(p);
+            }
+            
+            // Calculate statistics
+            const meanR = correlations.reduce((a, b) => a + b, 0) / nSim;
+            const sdR = Math.sqrt(correlations.reduce((a, b) => a + (b - meanR) ** 2, 0) / nSim);
+            const power05 = pValues.filter(p => p < 0.05).length / nSim;
+            const power01 = pValues.filter(p => p < 0.01).length / nSim;
+            
+            // Update display
+            document.getElementById('meanR').textContent = meanR.toFixed(3);
+            document.getElementById('sdR').textContent = sdR.toFixed(3);
+            document.getElementById('power').textContent = (power05 * 100).toFixed(1) + '%';
+            document.getElementById('power01').textContent = (power01 * 100).toFixed(1) + '%';
+            
+            // Draw charts
+            drawHistogram('corrChart', correlations, -1, 1, 40, '#4a4a4a', trueR, `ρ = ${trueR}`);
+            drawHistogram('pvalChart', pValues, 0, 1, 40, '#4a4a4a', 0.05, 'p = 0.05');
+            
+            // Update explanation
+            updateExplanation(trueR, n, power05);
+        }
+
+        function updateExplanation(trueR, n, power) {
+            const explanationDiv = document.getElementById('explanation');
+            let text = '';
+            
+            if (trueR === 0) {
+                text = `<h3>Null hypothesis is true</h3>
+                <p>With ρ = 0, the p-values are approximately <strong>uniformly distributed</strong> between 0 and 1. 
+                About 5% fall below 0.05 purely by chance—these are Type I errors (false positives). 
+                This is why α = 0.05 means we accept a 5% false positive rate.</p>`;
+            } else if (power < 0.5) {
+                text = `<h3>Low power warning</h3>
+                <p>With ρ = ${trueR} and N = ${n}, your power is only <strong>${(power * 100).toFixed(0)}%</strong>. 
+                This means most studies would fail to detect this real effect! 
+                The p-values are spread across the range because samples often produce r values close to zero by chance. 
+                Try increasing N to improve power.</p>`;
+            } else if (power < 0.8) {
+                text = `<h3>Moderate power</h3>
+                <p>With ρ = ${trueR} and N = ${n}, your power is <strong>${(power * 100).toFixed(0)}%</strong>. 
+                The p-values are starting to cluster toward zero, but there's still substantial probability of missing the effect. 
+                Convention suggests aiming for 80% power—try increasing N to get there.</p>`;
+            } else {
+                text = `<h3>Good power</h3>
+                <p>With ρ = ${trueR} and N = ${n}, your power is <strong>${(power * 100).toFixed(0)}%</strong>. 
+                The p-values cluster strongly near zero because most samples produce r values far enough from zero to reject H₀. 
+                You have a good chance of detecting this effect if it exists.</p>`;
+            }
+            
+            explanationDiv.innerHTML = text;
+        }
+
+        // Run initial simulation on load
+        window.onload = function() {
+            runSimulation();
+        };
+    </script>
+</body>
+</html>
